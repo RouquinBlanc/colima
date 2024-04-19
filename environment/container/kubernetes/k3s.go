@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,16 +16,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const registriesFile = "/etc/rancher/k3s/registries.yaml"
+
 func installK3s(host environment.HostActions,
 	guest environment.GuestActions,
 	a *cli.ActiveCommandChain,
 	log *logrus.Entry,
 	containerRuntime string,
 	k3sVersion string,
+	k3sRegistries map[string]any,
 	disable []string,
 ) {
 	installK3sBinary(host, guest, a, k3sVersion)
-	installK3sCache(host, guest, a, log, containerRuntime, k3sVersion)
+	if containerRuntime != "" {
+		installK3sCache(host, guest, a, log, containerRuntime, k3sVersion)
+	} else {
+		createRegistriesFile(guest, a, k3sRegistries)
+	}
 	installK3sCluster(host, guest, a, containerRuntime, k3sVersion, disable)
 }
 
@@ -34,6 +42,10 @@ func installK3sBinary(
 	a *cli.ActiveCommandChain,
 	k3sVersion string,
 ) {
+	a.Add(func() error {
+		return guest.Run("sh", "-c", "sudo apt-get update && sudo apt-get install -f -y open-iscsi")
+	})
+
 	downloadPath := "/tmp/k3s"
 
 	baseURL := "https://github.com/k3s-io/k3s/releases/download/" + k3sVersion + "/"
@@ -157,6 +169,25 @@ func installK3sCluster(
 		args = append(args, "--container-runtime-endpoint", "unix:///run/containerd/containerd.sock")
 	}
 	a.Add(func() error {
-		return guest.Run("sh", "-c", "INSTALL_K3S_SKIP_DOWNLOAD=true INSTALL_K3S_SKIP_ENABLE=true k3s-install.sh "+strings.Join(args, " "))
+		return guest.Run("sh", "-c", "INSTALL_K3S_SKIP_ENABLE=true k3s-install.sh "+strings.Join(args, " "))
+	})
+}
+
+func createRegistriesFile(
+	guest environment.GuestActions,
+	a *cli.ActiveCommandChain,
+	registries map[string]any,
+) {
+	if len(registries) == 0 {
+		return
+	}
+
+	a.Stage("provisioning offline registries")
+	a.Add(func() error {
+		b, err := json.MarshalIndent(registries, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling registries.yaml: %w", err)
+		}
+		return guest.Write(registriesFile, b)
 	})
 }
