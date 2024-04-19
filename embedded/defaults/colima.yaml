@@ -39,6 +39,14 @@ kubernetes:
   # Default: traefik is disabled
   k3sArgs: [--disable=traefik]
 
+  # Disable using global runtime (will use embedded containerd)
+  # Default: use the runtime specified globally
+  noRuntime: false
+
+  # Offline registries configuration, when using the `noRuntime` option.
+  # Format must match the /etc/rancher/k3s/registries.yaml format.
+  registries: {}
+
 # Auto-activate on the Host for client access.
 # Setting to true does the following on startup
 #  - sets as active Docker context (for Docker runtime).

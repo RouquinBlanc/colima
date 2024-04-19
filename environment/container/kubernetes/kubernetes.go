@@ -122,7 +122,12 @@ func (c *kubernetesRuntime) Provision(ctx context.Context) error {
 				a.Stage("installing")
 			}
 		}
-		installK3s(c.host, c.guest, a, log, runtime, conf.Version, conf.K3sArgs)
+
+		if conf.NoRuntime {
+			runtime = ""
+		}
+
+		installK3s(c.host, c.guest, a, log, runtime, conf.Version, conf.Registries, conf.K3sArgs)
 	}
 
 	// this needs to happen on each startup
